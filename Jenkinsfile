@@ -1,54 +1,82 @@
 pipeline {
+    agent any
 
-    parameters {
-        booleanParam(name: 'autoApprove', defaultValue: false, description: 'Automatically run apply after generating plan?')
-    } 
-    environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
-    }
-
-   agent  any
     stages {
-        stage('checkout') {
+
+        stage('Checkout') {
             steps {
-                 script{
-                        dir("terraform")
-                        {
-                            git "https://github.com/Saiketha/Terraform-Jenkins.git"
-                        }
+                git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                sh 'terraform init'
+            }
+        }
+
+        stage('Terraform Validate') {
+            steps {
+                sh 'terraform validate'
+            }
+        }
+
+        stage('Terraform Plan') {
+            steps {
+                sh 'terraform plan -out=tfplan'
+            }
+        }
+
+        stage('Approval to Apply') {
+            steps {
+                script {
+                    def applyApproval = input(
+                        id: 'ApplyApproval', message: 'Apply Terraform changes?', parameters: [
+                            [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Check to approve', name: 'approve']
+                        ]
+                    )
+
+                    if (!applyApproval) {
+                        error("Terraform apply aborted by user")
                     }
                 }
             }
+        }
 
-        stage('Plan') {
+        stage('Terraform Apply') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform init'
-                sh "pwd;cd terraform/ ; terraform plan -out tfplan"
-                sh 'pwd;cd terraform/ ; terraform show -no-color tfplan > tfplan.txt'
+                sh 'terraform apply -auto-approve tfplan'
             }
         }
-        stage('Approval') {
-           when {
-               not {
-                   equals expected: true, actual: params.autoApprove
-               }
-           }
 
-           steps {
-               script {
-                    def plan = readFile 'terraform/tfplan.txt'
-                    input message: "Do you want to apply the plan?",
-                    parameters: [text(name: 'Plan', description: 'Please review the plan', defaultValue: plan)]
-               }
-           }
-       }
-
-        stage('Apply') {
+        stage('Approval to Destroy') {
             steps {
-                sh "pwd;cd terraform/ ; terraform apply -input=false tfplan"
+                script {
+                    def destroyApproval = input(
+                        id: 'DestroyApproval', message: 'Destroy Terraform infrastructure?', parameters: [
+                            [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Check to approve destroy', name: 'approve_destroy']
+                        ]
+                    )
+
+                    if (!destroyApproval) {
+                        echo "Destroy skipped by user"
+                        currentBuild.result = 'SUCCESS'
+                        return
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            steps {
+                sh 'terraform destroy -auto-approve'
             }
         }
     }
 
-  }
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
