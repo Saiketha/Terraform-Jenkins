@@ -1,20 +1,20 @@
 pipeline {
     agent {
         docker {
-            image 'hashicorp/terraform:1.5.7' // Uses Terraform Docker image
-            args '-u root' // Optional: runs as root to avoid permission issues
+            image 'hashicorp/terraform:1.5.7' // Terraform inside Docker
+            args '-u root'
         }
     }
 
     environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')        // Jenkins credentials ID
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')    // Jenkins credentials ID
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout scm // Uses the Jenkinsfile's own repo (no need for a Git URL)
+                checkout scm
             }
         }
 
@@ -52,7 +52,6 @@ pipeline {
                             booleanParam(name: 'approve', defaultValue: false, description: 'Check to approve')
                         ]
                     )
-
                     if (!applyApproval) {
                         error("Terraform apply aborted by user")
                     }
@@ -78,7 +77,6 @@ pipeline {
                             booleanParam(name: 'approve_destroy', defaultValue: false, description: 'Check to approve destroy')
                         ]
                     )
-
                     if (!destroyApproval) {
                         echo "Destroy skipped by user"
                         currentBuild.result = 'SUCCESS'
