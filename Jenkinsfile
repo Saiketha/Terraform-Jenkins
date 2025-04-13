@@ -1,38 +1,45 @@
 pipeline {
-  environment {
-        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
-        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+    agent {
+        docker {
+            image 'hashicorp/terraform:1.5.7' // Use appropriate Terraform version
+            args '-u root' // Optional: ensures permissions if workspace needs write
+        }
     }
-    agent any
+
+    environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')        // Jenkins credentials ID
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')    // Jenkins credentials ID
+    }
 
     stages {
 
         stage('Checkout') {
             steps {
-                script { 
-                  dir("terraform")
-                    {
-                      git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
-                    }
-                }
+                git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
             }
         }
 
         stage('Terraform Init') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform init'
+                dir('terraform') {
+                    sh 'terraform init'
+                }
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform validate'
+                dir('terraform') {
+                    sh 'terraform validate'
+                }
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform plan -out=tfplan'
+                dir('terraform') {
+                    sh 'terraform plan -out=tfplan'
+                }
             }
         }
 
@@ -40,8 +47,10 @@ pipeline {
             steps {
                 script {
                     def applyApproval = input(
-                        id: 'ApplyApproval', message: 'Apply Terraform changes?', parameters: [
-                            [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Check to approve', name: 'approve']
+                        id: 'ApplyApproval',
+                        message: 'Apply Terraform changes?',
+                        parameters: [
+                            booleanParam(name: 'approve', defaultValue: false, description: 'Check to approve')
                         ]
                     )
 
@@ -54,7 +63,9 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform apply -auto-approve tfplan'
+                dir('terraform') {
+                    sh 'terraform apply -auto-approve tfplan'
+                }
             }
         }
 
@@ -62,8 +73,10 @@ pipeline {
             steps {
                 script {
                     def destroyApproval = input(
-                        id: 'DestroyApproval', message: 'Destroy Terraform infrastructure?', parameters: [
-                            [$class: 'BooleanParameterDefinition', defaultValue: false, description: 'Check to approve destroy', name: 'approve_destroy']
+                        id: 'DestroyApproval',
+                        message: 'Destroy Terraform infrastructure?',
+                        parameters: [
+                            booleanParam(name: 'approve_destroy', defaultValue: false, description: 'Check to approve destroy')
                         ]
                     )
 
@@ -78,7 +91,9 @@ pipeline {
 
         stage('Terraform Destroy') {
             steps {
-                sh 'pwd;cd terraform/ ; terraform destroy -auto-approve'
+                dir('terraform') {
+                    sh 'terraform destroy -auto-approve'
+                }
             }
         }
     }
