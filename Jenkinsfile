@@ -1,8 +1,8 @@
 pipeline {
     agent {
         docker {
-            image 'hashicorp/terraform:1.5.7' // Use appropriate Terraform version
-            args '-u root' // Optional: ensures permissions if workspace needs write
+            image 'hashicorp/terraform:1.5.7' // Uses Terraform Docker image
+            args '-u root' // Optional: runs as root to avoid permission issues
         }
     }
 
@@ -12,10 +12,9 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
+                checkout scm // Uses the Jenkinsfile's own repo (no need for a Git URL)
             }
         }
 
