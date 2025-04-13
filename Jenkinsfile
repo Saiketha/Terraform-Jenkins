@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'hashicorp/terraform:1.5.7' // Terraform inside Docker
-            args '-u root'
-        }
-    }
+    agent any
 
     environment {
         AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
@@ -12,84 +7,42 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Terraform Init') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform init'
-                }
-            }
-        }
-
-        stage('Terraform Validate') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform validate'
-                }
-            }
-        }
-
-        stage('Terraform Plan') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform plan -out=tfplan'
-                }
-            }
-        }
-
-        stage('Approval to Apply') {
+        stage('Run Terraform in Docker') {
             steps {
                 script {
-                    def applyApproval = input(
-                        id: 'ApplyApproval',
-                        message: 'Apply Terraform changes?',
-                        parameters: [
-                            booleanParam(name: 'approve', defaultValue: false, description: 'Check to approve')
-                        ]
-                    )
-                    if (!applyApproval) {
-                        error("Terraform apply aborted by user")
+                    docker.image('hashicorp/terraform:1.5.7').inside {
+                        dir('terraform') {
+                            sh '''
+                                terraform init
+                                terraform validate
+                                terraform plan -out=tfplan
+                            '''
+                        }
+
+                        def applyApproval = input(
+                            id: 'ApplyApproval',
+                            message: 'Apply Terraform changes?',
+                            parameters: [booleanParam(name: 'approve', defaultValue: false)]
+                        )
+                        if (!applyApproval) {
+                            error("Terraform apply aborted by user")
+                        }
+
+                        dir('terraform') {
+                            sh 'terraform apply -auto-approve tfplan'
+                        }
+
+                        def destroyApproval = input(
+                            id: 'DestroyApproval',
+                            message: 'Destroy Terraform infrastructure?',
+                            parameters: [booleanParam(name: 'approve_destroy', defaultValue: false)]
+                        )
+                        if (destroyApproval) {
+                            dir('terraform') {
+                                sh 'terraform destroy -auto-approve'
+                            }
+                        }
                     }
-                }
-            }
-        }
-
-        stage('Terraform Apply') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform apply -auto-approve tfplan'
-                }
-            }
-        }
-
-        stage('Approval to Destroy') {
-            steps {
-                script {
-                    def destroyApproval = input(
-                        id: 'DestroyApproval',
-                        message: 'Destroy Terraform infrastructure?',
-                        parameters: [
-                            booleanParam(name: 'approve_destroy', defaultValue: false, description: 'Check to approve destroy')
-                        ]
-                    )
-                    if (!destroyApproval) {
-                        echo "Destroy skipped by user"
-                        currentBuild.result = 'SUCCESS'
-                        return
-                    }
-                }
-            }
-        }
-
-        stage('Terraform Destroy') {
-            steps {
-                dir('terraform') {
-                    sh 'terraform destroy -auto-approve'
                 }
             }
         }
