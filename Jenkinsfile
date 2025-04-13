@@ -1,29 +1,38 @@
 pipeline {
+  environment {
+        AWS_ACCESS_KEY_ID     = credentials('AWS_ACCESS_KEY_ID')
+        AWS_SECRET_ACCESS_KEY = credentials('AWS_SECRET_ACCESS_KEY')
+    }
     agent any
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
+                script { 
+                  dir("terraform")
+                    {
+                      git branch: 'main', url: 'https://github.com/Saiketha/Terraform-Jenkins.git'
+                    }
+                }
             }
         }
 
         stage('Terraform Init') {
             steps {
-                sh 'terraform init'
+                sh 'pwd;cd terraform/ ; terraform init'
             }
         }
 
         stage('Terraform Validate') {
             steps {
-                sh 'terraform validate'
+                sh 'pwd;cd terraform/ ; terraform validate'
             }
         }
 
         stage('Terraform Plan') {
             steps {
-                sh 'terraform plan -out=tfplan'
+                sh 'pwd;cd terraform/ ; terraform plan -out=tfplan'
             }
         }
 
@@ -45,7 +54,7 @@ pipeline {
 
         stage('Terraform Apply') {
             steps {
-                sh 'terraform apply -auto-approve tfplan'
+                sh 'pwd;cd terraform/ ; terraform apply -auto-approve tfplan'
             }
         }
 
@@ -69,7 +78,7 @@ pipeline {
 
         stage('Terraform Destroy') {
             steps {
-                sh 'terraform destroy -auto-approve'
+                sh 'pwd;cd terraform/ ; terraform destroy -auto-approve'
             }
         }
     }
